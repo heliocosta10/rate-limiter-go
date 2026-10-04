@@ -1,0 +1,45 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rate-limiter-app
+    ports:
+      - "8080:8080"
+    environment:
+      APP_PORT: ${APP_PORT:-8080}
+      RATE_LIMIT_IP: ${RATE_LIMIT_IP:-10}
+      RATE_LIMIT_TOKEN_DEFAULT: ${RATE_LIMIT_TOKEN_DEFAULT:-10}
+      TOKEN_LIMITS_JSON: ${TOKEN_LIMITS_JSON:-{"token-premium":100,"token-basic":20}}
+      BLOCK_DURATION_SECONDS: ${BLOCK_DURATION_SECONDS:-300}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-1}
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["/app/rate-limiter"]
+
+  redis:
+    image: redis:7-alpine
+    container_name: rate-limiter-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  test:
+    image: golang:1.24-alpine
+    working_dir: /src
+    volumes:
+      - .:/src
+    command: ["sh", "-c", "go mod download && go test ./... -v"]
+
+    
+volumes:
+  redis_data:
